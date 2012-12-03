@@ -13,7 +13,7 @@ Plugins included:
 
 A few RSS feeds which can be added using the console to Serviio:
 
-Genre Comedy: http://www.uitzendinggemist.nl/genres/comedy.rss
+Genre Comedy: http://www.uitzendinggemist.nl/genres/comedy.rss 
 Omroep Flevoland: http://www.uitzendinggemist.nl/omroepen/omroepflevoland.rss 
 Het Zandkasteel: http://www.uitzendinggemist.nl/programmas/354-het-zandkasteel.rss
  
