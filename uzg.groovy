@@ -8,11 +8,17 @@ import java.security.MessageDigest
  * Uitzending Gemist 
  * 
  * @author Erwin Bovendeur 
- * @version 1.0
+ * @version 1.1
  * @releasedate 2012-11-29
  *
+ * Changelog:
+ * Version 1.1:
+ * - Converted to WebResourceUrlExtractor to be able to handle ?page=...
+ * 
+ * Version 1.0: 
+ * - Initial release
  */
-class UitzendingGemist extends FeedItemUrlExtractor {
+class UitzendingGemist extends WebResourceUrlExtractor {
 
     final VALID_FEED_URL = '^http(s)*://.*uitzendinggemist.nl/.*$'
     final VALID_LINK_URL = '^http://gemi.st/(\\d+)$'
@@ -27,7 +33,7 @@ class UitzendingGemist extends FeedItemUrlExtractor {
     MessageDigest digest = MessageDigest.getInstance("MD5")
 
     String getExtractorName() {
-        return getClass().getName()
+        return "Uitzending Gemist"
     }
     
     boolean extractorMatches(URL feedUrl) {
@@ -35,111 +41,202 @@ class UitzendingGemist extends FeedItemUrlExtractor {
     }
 
     String getToken() {
-		if (security_token == null) {
-			def security_info = new URL("http://pi.omroep.nl/info/security/").getText()	
-			def security_hash = xpath(security_info, "/session/key")
-			def security_tokens = new String(security_hash.decodeBase64()).split("\\|") 
-			security_token = security_tokens[1]
-		}
-		return security_token
+        if (security_token == null) {
+            def security_info = new URL("http://pi.omroep.nl/info/security/").getText() 
+            def security_hash = xpath(security_info, "/session/key")
+            def security_tokens = new String(security_hash.decodeBase64()).split("\\|") 
+            security_token = security_tokens[1]
+        }
+        return security_token
     } 
 
     def md5(String s) {
-		digest.update(s.bytes);
-		new BigInteger(1, digest.digest()).toString(16).padLeft(32, '0')
+        digest.update(s.bytes);
+        new BigInteger(1, digest.digest()).toString(16).padLeft(32, '0')
     } 
     
-    ContentURLContainer extractUrl(Map links, PreferredQuality requestedQuality) {
-        def linkUrl = links.alternate != null ? links.alternate : links.default
-        def thumbnailUrl = links.thumbnail
+    WebResourceContainer extractItems(URL resourceUrl, int maxItems) {
+        List<WebResourceItem> items = []
+        def itemsAdded = 0 
+        String videoUrl = ""
+        String videoTitle = ""
+        Date releaseDate
+        String pageTitle = ""
+        String pageThumb = ""
+        String thumbUrl = ""
+        String cleanUrl = ""
+        Short startPage = 0
+        boolean hasPages = false
+        boolean isFirstPage = true
 
-		def pageContent = null
-		def videoId = null
+        log("Parsing file with Uitzending Gemist")
 
-		/* Check if this is the long url, or the shorter gemi.st domain */
-		if (linkUrl ==~ VALID_PAGE_URL) {
-			log("Requesting info for page '" + linkUrl.toString() + "'")
-			if (pageContent == null) {
-				pageContent = linkUrl.getText()
+        // Does this URL already contain a ?page=
+        if (resourceUrl ==~ /^.*programmas.*$/) {
+            // This URL can contain a page argument, or already does that
+            if (resourceUrl ==~ /^.*page=\d*$/) {
+                def matcher = resourceUrl =~ /^(.*\?page=)(\d*)$/
+                cleanUrl = matcher[0][1]
+                startPage = matcher[0][2].toShort()
+            } else {
+                cleanUrl = resourceUrl.toString() + "?page="
+                resourceUrl = new URL(cleanUrl + startPage)
+            }
+            hasPages = true
 
-				def episode = pageContent =~ EPISODE_ID
-				if (episode.hasGroup()) {
-					videoId = episode[0][1]
-				}
-			}
-		}
-		if (videoId == null && linkUrl ==~ VALID_LINK_URL) {
-        	def matcher = linkUrl =~ VALID_LINK_URL
-       		assert matcher != null
-	       	assert matcher.hasGroup()
+            log("This URL has multiple pages, starting at page " + startPage)
+        }
 
-			if (matcher.matches()) {
-		        videoId = matcher[0][1]
-			}
-		}
+        while (maxItems == -1 || items.size() < maxItems) {
+            def content = resourceUrl.getText()
+            def xmlContent = new XmlSlurper().parseText(content).declareNamespace(media: "http://search.yahoo.com/mrss/")
 
-		if (videoId == null) {
-			log("Link '" + linkUrl.toString() + "' can't be handled by this plugin")
-		}
+            // Extract the pageTitle and thumb
+            if (isFirstPage) {
+                pageTitle = xmlContent.channel.title
+                pageThumb = xmlContent.channel.image.url
+                isFirstPage = false
 
-		def token = getToken()
-		def hash = md5(videoId + "|" + token).toUpperCase() /* Really? Come on! */
-		def videoInfo = new URL("http://pi.omroep.nl/info/stream/aflevering/" + videoId + "/" + hash).getText()
+                log("Page title: " + pageTitle)
+            }
 
-		/* Depending on the quality requested, return different url's */
-		def videoUrl = null
-		if (requestedQuality == PreferredQuality.HIGH) {
-			videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"mov\" and @compressie_kwaliteit=\"std\"]/streamurl")	
-			if (videoUrl == null || videoUrl.length() == 0) {
-				videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"wvc1\" and @compressie_kwaliteit=\"std\"]/streamurl") 
-			}
-		} else if (requestedQuality == PreferredQuality.MEDIUM) {
-			videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"mov\" and @compressie_kwaliteit=\"bb\"]/streamurl") 
-		} else if (requestedQuality == PreferredQuality.LOW) {
-			videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"mov\" and @compressie_kwaliteit=\"sb\"]/streamurl") 
-		}
+            def nodes = xmlContent.channel.item
 
-		if (videoUrl.endsWith("type=asx")) {
-			// Extract the mms link
-			def asxContent = new URL(videoUrl).getText()
-			def mmsref = asxContent =~ 'href="mms://(.*)"'
-			videoUrl = "mmsh://" + mmsref[0][1]
-		}
+            if (nodes.size() == 0) {
+                log("Page found without items, this is the end")
+                break;
+            }
 
-		if (thumbnailUrl == null) {
-			if (pageContent == null) {
-				pageContent = linkUrl.getText()
-			}
-			def thumb = pageContent =~ THUMBNAIL_URL
-			thumbnailUrl = thumb[0][1]
-		}
-        return new ContentURLContainer(fileType: MediaFileType.VIDEO, contentUrl: videoUrl, thumbnailUrl: thumbnailUrl, expiresImmediately: true, cacheKey: videoId)
+            // Loop the items
+            for (int i = 0; i < nodes.size(); i++) {
+                def n = nodes[i]
+                if (n != null) {
+                    videoTitle = n.title.text().trim()
+                    videoUrl = n.guid.text().trim()
+                    thumbUrl = n."media:thumbnail".@url.text().trim()
+                    releaseDate = Date.parse("E, dd MMM yyyy H:m:s z", n.pubDate.text().trim())
+
+                    WebResourceItem item = new WebResourceItem(title: videoTitle, releaseDate: releaseDate, additionalInfo: ['videoUrl':videoUrl,'thumbUrl':thumbUrl])
+                    items << item
+                }
+
+                if (maxItems != -1 && items.size() >= maxItems) {
+                    log("Having enough items (as much as requested)")
+                    break;
+                }
+            }
+
+            if (hasPages && (maxItems == -1 || items.size() < maxItems)) {
+                // Load the next page
+                startPage++
+                log("Loading page " + startPage)
+
+                resourceUrl = new URL(cleanUrl + startPage)
+            }
+        }
+
+        return new WebResourceContainer(title: pageTitle, thumbnailUrl: pageThumb, items: items)
+    }    
+
+    ContentURLContainer extractUrl(WebResourceItem item, PreferredQuality requestedQuality) {
+        String linkUrl = item.getAdditionalInfo()['videoUrl']
+        String thumbnailUrl = item.getAdditionalInfo()['thumbUrl']
+
+        String pageContent = null
+        String videoId = null
+
+        /* Check if this is the long url, or the shorter gemi.st domain */
+        if (linkUrl ==~ VALID_PAGE_URL) {
+            log("Requesting info for page '" + linkUrl.toString() + "'")
+            if (pageContent == null) {
+                pageContent = linkUrl.getText()
+
+                def episode = pageContent =~ EPISODE_ID
+                if (episode.hasGroup()) {
+                    videoId = episode[0][1]
+                }
+            }
+        }
+        if (videoId == null && linkUrl ==~ VALID_LINK_URL) {
+            def matcher = linkUrl =~ VALID_LINK_URL
+            assert matcher != null
+            assert matcher.hasGroup()
+
+            if (matcher.matches()) {
+                videoId = matcher[0][1]
+            }
+        }
+
+        if (videoId == null) {
+            log("Link '" + linkUrl.toString() + "' can't be handled by this plugin")
+        }
+
+        String token = getToken()
+        String hash = md5(videoId + "|" + token).toUpperCase() /* Really? Come on! */
+        String videoInfo = new URL("http://pi.omroep.nl/info/stream/aflevering/" + videoId + "/" + hash).getText()
+
+        /* Depending on the quality requested, return different url's */
+        String videoUrl = null
+        if (requestedQuality == PreferredQuality.HIGH) {
+            videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"mov\" and @compressie_kwaliteit=\"std\"]/streamurl") 
+            if (videoUrl == null || videoUrl.length() == 0) {
+                videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"wvc1\" and @compressie_kwaliteit=\"std\"]/streamurl") 
+            }
+        } else if (requestedQuality == PreferredQuality.MEDIUM) {
+            videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"mov\" and @compressie_kwaliteit=\"bb\"]/streamurl") 
+        } else if (requestedQuality == PreferredQuality.LOW) {
+            videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"mov\" and @compressie_kwaliteit=\"sb\"]/streamurl") 
+        }
+
+        if (videoUrl.endsWith("type=asx")) {
+            // Extract the mms link
+            URL asxContent = new URL(videoUrl).getText()
+            def mmsref = asxContent =~ 'href="mms://(.*)"'
+            videoUrl = "mmsh://" + mmsref[0][1]
+        }
+
+        if (thumbnailUrl == null) {
+            if (pageContent == null) {
+                pageContent = linkUrl.getText()
+            }
+            def thumb = pageContent =~ THUMBNAIL_URL
+            thumbnailUrl = thumb[0][1]
+        }
+        return new ContentURLContainer(fileType: MediaFileType.VIDEO, contentUrl: videoUrl, thumbnailUrl: thumbnailUrl, expiresImmediately: true, cacheKey: requestedQuality.toString() + "_" + videoId)
     }
 
     String xpath(String xmlContent, String xpath) {
-		def builder     = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-		def inputStream = new ByteArrayInputStream(xmlContent.bytes)
-		def records     = builder.parse(inputStream).documentElement
+        def builder     = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(xmlContent.bytes)
+        def records     = builder.parse(inputStream).documentElement
 
-		def path = XPathFactory.newInstance().newXPath()
-		return path.evaluate(xpath, records, XPathConstants.STRING).trim()
+        XPath path = XPathFactory.newInstance().newXPath()
+        return path.evaluate(xpath, records, XPathConstants.STRING).trim()
     }
     
     static void main(args) {
-		// this is just to test
-		UitzendingGemist uzg = new UitzendingGemist();
-		assert uzg.extractorMatches(new URL("http://www.uitzendinggemist.nl/kijktips.rss"))
+        // this is just to test
+        UitzendingGemist uzg = new UitzendingGemist();
+      URL resourceUrl = new URL("http://www.uitzendinggemist.nl/programmas/354-het-zandkasteel.rss")
+      WebResourceContainer container = uzg.extractItems(resourceUrl, 5)
 
-        Map links = ['default': new URL('http://gemi.st/15005786')]
-        ContentURLContainer result = uzg.extractUrl(links, PreferredQuality.HIGH)
-        println "Result: $result"
+      for (int i = 0; i < container.items.size(); i++) {
+        WebResourceItem item = container.items[i]
 
-        links = ['default': new URL('http://www.uitzendinggemist.nl/programmas/354-het-zandkasteel/afleveringen/1309320')]
-        result = uzg.extractUrl(links, PreferredQuality.HIGH)
-        println "Result: $result"
+        ContentURLContainer result = uzg.extractUrl(item, PreferredQuality.HIGH)
+        println result
+      }
 
-        links = ['default': new URL('http://gemi.st/15011972')]
-        result = uzg.extractUrl(links, PreferredQuality.HIGH)
-        println "Result: $result"
+//      println "Retrieved " + container.items.size() + " items"
+
+//      resourceUrl = new URL("http://www.uitzendinggemist.nl/programmas/354-het-zandkasteel.rss?page=103")
+//      container = uzg.extractItems(resourceUrl, 50)
+
+//      println "Retrieved " + container.items.size() + " items"
+
+//        WebResourceItem item = new WebResourceItem(title: 'Het Zandkasteel', additionalInfo: ['videoUrl':'http://gemi.st/15012003','thumbUrl':'http://mediadb.omroep.nl/assets/000/278/849.jpg'])
+//        ContentURLContainer result = uzg.extractUrl(item, PreferredQuality.HIGH)
+
+//        println result
     }
 }
