@@ -8,10 +8,14 @@ import java.security.MessageDigest
  * Uitzending Gemist 
  * 
  * @author Erwin Bovendeur 
- * @version 1.1
- * @releasedate 2012-11-29
+ * @version 1.2
+ * @releasedate 2012-11-30
  *
  * Changelog:
+ * Version 1.2:
+ * - Fixed missing thumbnails (thanks to Zip for pointing me in the right direction)
+ * - Fixed issue where the backup method for retrieving a thumbnail didn't work
+ *
  * Version 1.1:
  * - Converted to WebResourceUrlExtractor to be able to handle ?page=...
  * 
@@ -22,7 +26,7 @@ class UitzendingGemist extends WebResourceUrlExtractor {
 
     final VALID_FEED_URL = '^http(s)*://.*uitzendinggemist.nl/.*$'
     final VALID_LINK_URL = '^http://gemi.st/(\\d+)$'
-    final VALID_PAGE_URL = '^http://www.uitzendinggemist.nl/programmas/.*/afleveringen/.*$'
+    final VALID_PAGE_URL = '^http://www.uitzendinggemist.nl/(programmas/.*/)?afleveringen/.*$'
     final THUMBNAIL_URL = '<meta content="(.*)" itemprop="image" property="og:image" />'
     final EPISODE_ID = 'data-episode-id="(\\d+)"'
 
@@ -114,7 +118,7 @@ class UitzendingGemist extends WebResourceUrlExtractor {
                     videoTitle = n.title.text().trim()
                     videoUrl = n.guid.text().trim()
                     thumbUrl = n."media:thumbnail".@url.text().trim()
-                    releaseDate = Date.parse("E, dd MMM yyyy H:m:s z", n.pubDate.text().trim())
+                    releaseDate = Date.parse("E, dd MMM yyyy H:m:s Z", n.pubDate.text().trim())
 
                     WebResourceItem item = new WebResourceItem(title: videoTitle, releaseDate: releaseDate, additionalInfo: ['videoUrl':videoUrl,'thumbUrl':thumbUrl])
                     items << item
@@ -149,7 +153,7 @@ class UitzendingGemist extends WebResourceUrlExtractor {
         if (linkUrl ==~ VALID_PAGE_URL) {
             log("Requesting info for page '" + linkUrl.toString() + "'")
             if (pageContent == null) {
-                pageContent = linkUrl.getText()
+                pageContent = new URL(linkUrl).getText()
 
                 def episode = pageContent =~ EPISODE_ID
                 if (episode.hasGroup()) {
@@ -168,7 +172,7 @@ class UitzendingGemist extends WebResourceUrlExtractor {
         }
 
         if (videoId == null) {
-            log("Link '" + linkUrl.toString() + "' can't be handled by this plugin")
+            log("Link '" + linkUrl + "' can't be handled by this plugin")
         }
 
         String token = getToken()
@@ -195,9 +199,9 @@ class UitzendingGemist extends WebResourceUrlExtractor {
             videoUrl = "mmsh://" + mmsref[0][1]
         }
 
-        if (thumbnailUrl == null) {
+        if (thumbnailUrl == null || thumbnailUrl == '') {
             if (pageContent == null) {
-                pageContent = linkUrl.getText()
+                pageContent = new URL(linkUrl).getText()
             }
             def thumb = pageContent =~ THUMBNAIL_URL
             thumbnailUrl = thumb[0][1]
@@ -213,30 +217,40 @@ class UitzendingGemist extends WebResourceUrlExtractor {
         XPath path = XPathFactory.newInstance().newXPath()
         return path.evaluate(xpath, records, XPathConstants.STRING).trim()
     }
+
+    static WebResourceContainer testURL(String url) {
+	int itemCount = 2
+
+	UitzendingGemist uzg = new UitzendingGemist();
+	URL resourceUrl = new URL(url)
+	WebResourceContainer container = uzg.extractItems(resourceUrl, itemCount)
+	
+        assert container != null, 'Container is empty'
+        assert container.items != null, 'Container contains no items'
+        assert container.items.size() == itemCount, 'Amount of items is invalid. Expected was ' + itemCount + ', result was ' + container.items.size()
+
+        for (int i = 0; i < container.items.size(); i++) {
+            WebResourceItem item = container.items[i]
+            ContentURLContainer result = uzg.extractUrl(item, PreferredQuality.HIGH)
+            println result
+        }
+	return container
+    }
     
     static void main(args) {
         // this is just to test
         UitzendingGemist uzg = new UitzendingGemist();
-      URL resourceUrl = new URL("http://www.uitzendinggemist.nl/programmas/354-het-zandkasteel.rss")
-      WebResourceContainer container = uzg.extractItems(resourceUrl, 5)
+/*
+	WebResourceContainer container = testURL("http://www.uitzendinggemist.nl/programmas/354-het-zandkasteel.rss")
 
-      for (int i = 0; i < container.items.size(); i++) {
-        WebResourceItem item = container.items[i]
+	WebResourceItem singleItem = container.items[1]
+        singleItem = new WebResourceItem(title: singleItem.title, releaseDate: singleItem.releaseDate, additionalInfo: ['videoUrl':singleItem.getAdditionalInfo()['videoUrl']])
 
-        ContentURLContainer result = uzg.extractUrl(item, PreferredQuality.HIGH)
-        println result
-      }
+        ContentURLContainer singleResult = uzg.extractUrl(singleItem, PreferredQuality.MEDIUM)
+        println singleResult
+*/
 
-//      println "Retrieved " + container.items.size() + " items"
-
-//      resourceUrl = new URL("http://www.uitzendinggemist.nl/programmas/354-het-zandkasteel.rss?page=103")
-//      container = uzg.extractItems(resourceUrl, 50)
-
-//      println "Retrieved " + container.items.size() + " items"
-
-//        WebResourceItem item = new WebResourceItem(title: 'Het Zandkasteel', additionalInfo: ['videoUrl':'http://gemi.st/15012003','thumbUrl':'http://mediadb.omroep.nl/assets/000/278/849.jpg'])
-//        ContentURLContainer result = uzg.extractUrl(item, PreferredQuality.HIGH)
-
-//        println result
+	// Vandaag
+	testURL("http://www.uitzendinggemist.nl/weekarchief/vandaag.rss")
     }
 }
