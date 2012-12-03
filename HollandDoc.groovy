@@ -9,7 +9,7 @@ import groovy.json.JsonSlurper
  * Holland Doc
  * 
  * @author Erwin Bovendeur 
- * @version 1.0
+ * @version 1.1
  * @releasedate 2012-12-03
  *
  * Holland Doc plugin for Serviio. Allowed URL's are:
@@ -19,10 +19,10 @@ import groovy.json.JsonSlurper
  * The search function of the site can not be used, since it returns all kinds of results
  *
  * Changelog:
- * Version 1.0: 
- * - Initial release
+ * Version 1.1: 
+ * - Added use of OmroepNL Base class
  */
-class HollandDoc extends WebResourceUrlExtractor {
+class HollandDoc extends OmroepNL {
     final VALID_FEED_URL = '^http://www.hollanddoc.nl/kijk-luister/.*$'
 
     final HTML_ARTICLE = '(?s)<div id="vteaser.*?" class=".*?s-normal" data-urn="(.*?)">(.*?)<\\/div> <!-- \\.vteaser -->'
@@ -32,40 +32,12 @@ class HollandDoc extends WebResourceUrlExtractor {
     final HTML_PAGER        = '(?s)<ul class="pager">(.*?)</ul>'
     final HTML_PAGER_ITEM   = '(?s)<li><a.*?>(\\d+?)</a></li>'
 
-    final THUMBNAIL_URL = '<meta content="(.*)" itemprop="image" property="og:image" />'
-
-    /* Not really required, but the method openURL requires one, so let's just specify a valid one */
-    final USER_AGENT = 'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.15 (KHTML, like Gecko) Chrome/24.0.1295.0 Safari/537.15' 
-
-    def security_token = null
-    MessageDigest digest = MessageDigest.getInstance("MD5")
-
     String getExtractorName() {
         return "Holland Doc"
     }
     
     boolean extractorMatches(URL feedUrl) {
         return feedUrl ==~ VALID_FEED_URL
-    }
-
-    String getToken() {
-        if (security_token == null) {
-            def security_info = new URL("http://pi.omroep.nl/info/security/").getText() 
-            def security_hash = xpath(security_info, "/session/key")
-            def security_tokens = new String(security_hash.decodeBase64()).split("\\|") 
-            security_token = security_tokens[1]
-        }
-        return security_token
-    } 
-
-    def md5(String s) {
-        digest.update(s.bytes);
-        new BigInteger(1, digest.digest()).toString(16).padLeft(32, '0')
-    }
-
-    static String FirstMatch(String content, String regex) {
-        def match = content =~ regex
-        return match[0][1]
     }
     
     WebResourceContainer extractItems(URL resourceUrl, int maxItems) {
@@ -174,54 +146,6 @@ class HollandDoc extends WebResourceUrlExtractor {
 
         return new WebResourceContainer(title: pageTitle, items: items)
     }    
-
-    ContentURLContainer extractUrl(WebResourceItem item, PreferredQuality requestedQuality) {
-        String videoId = item.getAdditionalInfo()['videoId']
-        String thumbnailUrl = item.getAdditionalInfo()['thumbUrl']
-
-        String videoUrl = item.getAdditionalInfo()['videoUrl']
-
-        if (videoUrl == null) {
-            String token = getToken()
-            String hash = md5(videoId + "|" + token).toUpperCase() /* Really? Come on! */
-            String videoInfo = new URL("http://pi.omroep.nl/info/stream/aflevering/" + videoId + "/" + hash).getText()
-
-            /* Depending on the quality requested, return different url's */
-            if (requestedQuality == PreferredQuality.HIGH) {
-                videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"mov\" and @compressie_kwaliteit=\"std\"]/streamurl") 
-                if (videoUrl == null || videoUrl.length() == 0) {
-                    videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"wvc1\" and @compressie_kwaliteit=\"std\"]/streamurl") 
-                }
-            } else if (requestedQuality == PreferredQuality.MEDIUM) {
-                videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"mov\" and @compressie_kwaliteit=\"bb\"]/streamurl") 
-            } else if (requestedQuality == PreferredQuality.LOW) {
-                videoUrl = xpath(videoInfo, "/streams/stream[@compressie_formaat=\"mov\" and @compressie_kwaliteit=\"sb\"]/streamurl") 
-            }
-
-            if (videoUrl.endsWith("type=asx")) {
-                // Extract the mms link
-                URL asxContent = new URL(videoUrl).getText()
-                def mmsref = asxContent =~ 'href="mms://(.*)"'
-                videoUrl = "mmsh://" + mmsref[0][1]
-            }
-        }
-
-        if (thumbnailUrl == null || thumbnailUrl == '') {
-            String pageContent = new URL('http://gemi.st/' + videoId).getText()
-            def thumb = pageContent =~ THUMBNAIL_URL
-            thumbnailUrl = thumb[0][1]
-        }
-        return new ContentURLContainer(fileType: MediaFileType.VIDEO, contentUrl: videoUrl, thumbnailUrl: thumbnailUrl, expiresImmediately: true, cacheKey: requestedQuality.toString() + "_" + videoId)
-    }
-
-    String xpath(String xmlContent, String xpath) {
-        def builder     = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(xmlContent.bytes)
-        def records     = builder.parse(inputStream).documentElement
-
-        XPath path = XPathFactory.newInstance().newXPath()
-        return path.evaluate(xpath, records, XPathConstants.STRING).trim()
-    }
 
     static WebResourceContainer testURL(String url, int itemCount = 2) {
         HollandDoc doc = new HollandDoc();

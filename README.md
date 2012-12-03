@@ -5,6 +5,8 @@ Contains a set of plugins for Dutch websites, like Uitzending Gemist, so you can
 
 For more information about Serviio: http://www.servio.org
 
+All plugins require OmroepNL.groovy to be installed in the plugins directory of Serviio
+
 Plugins included:
 
 * Uitzending Gemist
