@@ -8,10 +8,13 @@ import java.security.MessageDigest
  * Uitzending Gemist 
  * 
  * @author Erwin Bovendeur 
- * @version 1.2
- * @releasedate 2012-11-30
+ * @version 1.3
+ * @releasedate 2012-12-02
  *
  * Changelog:
+ * Version 1.3:
+ * - Fixed Vandaag
+ *
  * Version 1.2:
  * - Fixed missing thumbnails (thanks to Zip for pointing me in the right direction)
  * - Fixed issue where the backup method for retrieving a thumbnail didn't work
@@ -240,7 +243,6 @@ class UitzendingGemist extends WebResourceUrlExtractor {
     static void main(args) {
         // this is just to test
         UitzendingGemist uzg = new UitzendingGemist();
-/*
 	WebResourceContainer container = testURL("http://www.uitzendinggemist.nl/programmas/354-het-zandkasteel.rss")
 
 	WebResourceItem singleItem = container.items[1]
@@ -248,7 +250,6 @@ class UitzendingGemist extends WebResourceUrlExtractor {
 
         ContentURLContainer singleResult = uzg.extractUrl(singleItem, PreferredQuality.MEDIUM)
         println singleResult
-*/
 
 	// Vandaag
 	testURL("http://www.uitzendinggemist.nl/weekarchief/vandaag.rss")
