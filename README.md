@@ -1,17 +1,20 @@
 Serviio Plugins
 ====
 
-Contains a set of plugins for Dutch websites, like Uitzending Gemist, so you can play the online streams from these sites from within Serviio on your DLNA enabled device.
+Contains a set of plugins for use with Serviio, so you can play certain online streams on your DLNA enabled device:
+- Dutch websites, like Uitzending Gemist and some Nederland 24 channels
+- Nickelodeon (Dutch, Swedish and Norwegian)
 
 For more information about Serviio: http://www.servio.org
 
-All plugins require OmroepNL.groovy to be installed in the plugins directory of Serviio
+The plugins Cultura24, HollandDoc and UitzendingGemist require OmroepNL.groovy to be installed in the plugins directory of Serviio
 
 Plugins included:
 
 * Uitzending Gemist
 * Cultura 24
 * Holland Doc
+* Nickelodeon
 
 ## Uitzending Gemist
 
@@ -38,4 +41,13 @@ A plugin for watching missed shows of Holland Doc. Allowed URL's include URL's w
 http://www.hollanddoc.nl/kijk-luister/
 
 This plugin will automatically get the videos from the next pages, until the maximum amount of items is retrieved. If you set the amount of items to unlimited in Serviio, this plugin will fetch ALL pages from a specific topic.
+
+## Nickelodeon
+
+A plugin for watching streams from Nickelodeon. Supported are the Dutch, Swedish and Norwegian site of Nickelodeon. To get the correct feed for a program, navigate the site of Nickelodeon, and choose a show. Scroll down, and choose "More Videos". The URL should now contain /video/show, or /videos/show for the dutch site. 
+
+Example URL's for Dora on the three sites below:
+http://www.nickelodeon.nl/videos/show/280-dora
+http://www.nickelodeon.se/video/show/280-dora-utforskaren
+http://www.nickelodeon.no/video/show/280-dora-utforskeren
 
