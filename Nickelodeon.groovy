@@ -1,7 +1,5 @@
 import org.serviio.library.metadata.*
 import org.serviio.library.online.*
-import javax.xml.xpath.*
-import javax.xml.parsers.DocumentBuilderFactory
 import groovy.json.JsonSlurper
 import java.net.URLEncoder
 
@@ -26,15 +24,6 @@ class Nickelodeon extends WebResourceUrlExtractor {
 
     final BASE_FEED_URL	    = 'http://api.mtvnn.com/v2/mrss.xml?uri=mgid%3Asensei%3Avideo%3Amtvnn.com%3Alocal_playlist-'
     final CONFIG_URL        = '(http://player.mtvnn.com/.*?/config/config.php)'
-
-    String xpath(String xmlContent, String xpath) {
-        def builder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(xmlContent.bytes)
-        def records = builder.parse(inputStream).documentElement
-
-        XPath path = XPathFactory.newInstance().newXPath()
-        return path.evaluate(xpath, records, XPathConstants.STRING).trim()
-    }
 
     String FirstMatch(String content, String regex) {
         def match = content =~ regex

@@ -4,6 +4,7 @@ Serviio Plugins
 Contains a set of plugins for use with Serviio, so you can play certain online streams on your DLNA enabled device:
 - Dutch websites, like Uitzending Gemist and some Nederland 24 channels
 - Nickelodeon (Dutch, Swedish and Norwegian)
+- RTL XL for RTL 4, 5, 7 & 8
 
 For more information about Serviio: http://www.servio.org
 
@@ -15,6 +16,7 @@ Plugins included:
 * Cultura 24
 * Holland Doc
 * Nickelodeon
+* RTL XL
 
 ## Uitzending Gemist
 
@@ -50,4 +52,10 @@ Example URL's for Dora on the three sites below:
 http://www.nickelodeon.nl/videos/show/280-dora
 http://www.nickelodeon.se/video/show/280-dora-utforskaren
 http://www.nickelodeon.no/video/show/280-dora-utforskeren
+
+## RTL XL
+
+A plugin for watching shows from http://www.rtl.nl/xl. Not all streams are available (like the ones you have to pay for), or the streams that are protected by DRM. 
+
+To get the URL for a show, browse the site (http://www.rtl.nl/xl/), click Gemist or A-Z, and navigate to a show of choice. If the URL looks like http://www.rtl.nl/xl/#/a/254493, you're good to go. Enter the URL as Other Web Resource in the Serviio Console.
 
