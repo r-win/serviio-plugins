@@ -39,7 +39,11 @@ class Nickelodeon extends WebResourceUrlExtractor {
     String getExtractorName() {
         return "Nickelodeon"
     }
-    
+
+    int getVersion() {
+        return 10;
+    }    
+
     boolean extractorMatches(URL feedUrl) {
         return feedUrl ==~ VALID_LINK_URL 
     }

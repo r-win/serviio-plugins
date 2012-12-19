@@ -42,6 +42,10 @@ class Cultura24 extends OmroepNL {
     String getExtractorName() {
         return "Cultura 24"
     }
+
+    int getVersion() {
+        return 11;
+    }    
     
     boolean extractorMatches(URL feedUrl) {
         return feedUrl ==~ VALID_FEED_URL

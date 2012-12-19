@@ -83,6 +83,10 @@ class OmroepNL extends WebResourceUrlExtractor {
         return "Omroep NL"
     }
     
+    int getVersion() {
+        return 10;
+    }
+    
     boolean extractorMatches(URL feedUrl) {
         return false
     }

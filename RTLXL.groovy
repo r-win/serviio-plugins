@@ -35,6 +35,10 @@ class RTLXL extends WebResourceUrlExtractor {
     String getExtractorName() {
         return "RTL XL"
     }
+
+    int getVersion() {
+        return 10;
+    }
     
     boolean extractorMatches(URL feedUrl) {
         return feedUrl ==~ VALID_LINK_URL

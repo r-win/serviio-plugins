@@ -13,8 +13,8 @@ import java.security.MessageDigest
  * @url https://github.com/r-win/serviio-plugins
  *
  * Changelog:
- * Version 1.4:
- * - Create OmroepNL base class for shared functionality
+ * Version 1.5:
+ * - Force setting the locale to United States, might resolve unparseable date
  *
  */
 class UitzendingGemist extends OmroepNL {
@@ -23,6 +23,10 @@ class UitzendingGemist extends OmroepNL {
 
     String getExtractorName() {
         return "Uitzending Gemist"
+    }
+
+    int getVersion() {
+        return 14;
     }
     
     boolean extractorMatches(URL feedUrl) {
@@ -43,73 +47,81 @@ class UitzendingGemist extends OmroepNL {
         boolean hasPages = false
         boolean isFirstPage = true
 
-        log("Parsing file with Uitzending Gemist")
+        Locale currentLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.US)
 
-        // Does this URL already contain a ?page=
-        if (resourceUrl ==~ /^.*programmas.*$/) {
-            // This URL can contain a page argument, or already does that
-            if (resourceUrl ==~ /^.*page=\d*$/) {
-                def matcher = resourceUrl =~ /^(.*\?page=)(\d*)$/
-                cleanUrl = matcher[0][1]
-                startPage = matcher[0][2].toShort()
-            } else {
-                cleanUrl = resourceUrl.toString() + "?page="
-                resourceUrl = new URL(cleanUrl + startPage)
-            }
-            hasPages = true
+            log("Parsing file with Uitzending Gemist")
 
-            log("This URL has multiple pages, starting at page " + startPage)
-        }
+            // Does this URL already contain a ?page=
+            if (resourceUrl ==~ /^.*programmas.*$/) {
+                // This URL can contain a page argument, or already does that
+                if (resourceUrl ==~ /^.*page=\d*$/) {
+                    def matcher = resourceUrl =~ /^(.*\?page=)(\d*)$/
+                    cleanUrl = matcher[0][1]
+                    startPage = matcher[0][2].toShort()
+                } else {
+                    cleanUrl = resourceUrl.toString() + "?page="
+                    resourceUrl = new URL(cleanUrl + startPage)
+                }
+                hasPages = true
 
-        while (maxItems == -1 || items.size() < maxItems) {
-            def content = resourceUrl.getText()
-            def xmlContent = new XmlSlurper().parseText(content).declareNamespace(media: "http://search.yahoo.com/mrss/")
-
-            // Extract the pageTitle and thumb
-            if (isFirstPage) {
-                pageTitle = xmlContent.channel.title
-                pageThumb = xmlContent.channel.image.url
-                isFirstPage = false
-
-                log("Page title: " + pageTitle)
+                log("This URL has multiple pages, starting at page " + startPage)
             }
 
-            def nodes = xmlContent.channel.item
+            while (maxItems == -1 || items.size() < maxItems) {
+                def content = resourceUrl.getText()
+                def xmlContent = new XmlSlurper().parseText(content).declareNamespace(media: "http://search.yahoo.com/mrss/")
 
-            if (nodes.size() == 0) {
-                log("Page found without items, this is the end")
-                break;
-            }
+                // Extract the pageTitle and thumb
+                if (isFirstPage) {
+                    pageTitle = xmlContent.channel.title
+                    pageThumb = xmlContent.channel.image.url
+                    isFirstPage = false
 
-            // Loop the items
-            for (int i = 0; i < nodes.size(); i++) {
-                def n = nodes[i]
-                if (n != null) {
-                    videoTitle = strip(n.title.text().trim())
-                    videoUrl = n.guid.text().trim()
-                    thumbUrl = n."media:thumbnail".@url.text().trim()
-                    releaseDate = Date.parse("E, dd MMM yyyy H:m:s Z", n.pubDate.text().trim())
-
-                    WebResourceItem item = new WebResourceItem(title: videoTitle, releaseDate: releaseDate, additionalInfo: ['infoUrl':videoUrl,'thumbUrl':thumbUrl])
-                    items << item
+                    log("Page title: " + pageTitle)
                 }
 
-                if (maxItems != -1 && items.size() >= maxItems) {
-                    log("Having enough items (as much as requested)")
+                def nodes = xmlContent.channel.item
+
+                if (nodes.size() == 0) {
+                    log("Page found without items, this is the end")
                     break;
                 }
+
+                // Loop the items
+                for (int i = 0; i < nodes.size(); i++) {
+                    def n = nodes[i]
+                    if (n != null) {
+                        videoTitle = strip(n.title.text().trim())
+                        videoUrl = n.guid.text().trim()
+                        thumbUrl = n."media:thumbnail".@url.text().trim()
+                        releaseDate = Date.parse("E, dd MMM yyyy H:m:s Z", n.pubDate.text().trim())
+
+                        WebResourceItem item = new WebResourceItem(title: videoTitle, releaseDate: releaseDate, additionalInfo: ['infoUrl':videoUrl,'thumbUrl':thumbUrl])
+                        items << item
+                    }
+
+                    if (maxItems != -1 && items.size() >= maxItems) {
+                        log("Having enough items (as much as requested)")
+                        break;
+                    }
+                }
+
+                if (hasPages && (maxItems == -1 || items.size() < maxItems)) {
+                    // Load the next page
+                    startPage++
+                    log("Loading page " + startPage)
+
+                    resourceUrl = new URL(cleanUrl + startPage)
+                }
             }
 
-            if (hasPages && (maxItems == -1 || items.size() < maxItems)) {
-                // Load the next page
-                startPage++
-                log("Loading page " + startPage)
-
-                resourceUrl = new URL(cleanUrl + startPage)
-            }
+            return new WebResourceContainer(title: pageTitle, thumbnailUrl: pageThumb, items: items)
         }
-
-        return new WebResourceContainer(title: pageTitle, thumbnailUrl: pageThumb, items: items)
+        finally {
+            Locale.setDefault(currentLocale)
+        }
     }    
 
     static WebResourceContainer testURL(String url) {

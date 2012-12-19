@@ -36,6 +36,10 @@ class HollandDoc extends OmroepNL {
         return "Holland Doc"
     }
     
+    int getVersion() {
+        return 11;
+    }
+
     boolean extractorMatches(URL feedUrl) {
         return feedUrl ==~ VALID_FEED_URL
     }
