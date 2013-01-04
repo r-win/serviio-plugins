@@ -41,7 +41,7 @@ class RTLXL extends WebResourceUrlExtractor {
     }
 
     int getVersion() {
-        return 10;
+        return 11;
     }
     
     boolean extractorMatches(URL feedUrl) {
