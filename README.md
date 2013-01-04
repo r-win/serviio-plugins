@@ -59,3 +59,15 @@ A plugin for watching shows from http://www.rtl.nl/xl. Not all streams are avail
 
 To get the URL for a show, browse the site (http://www.rtl.nl/xl/), click Gemist or A-Z, and navigate to a show of choice. If the URL looks like http://www.rtl.nl/xl/#/a/254493, you're good to go. Enter the URL as Other Web Resource in the Serviio Console.
 
+The online content of RTL XL has support for multiple content types. Currently, the following types seems to be used:
+onlineonly => only online available
+fragmenten => short fragment for one episode
+eps_fragment => teaser for one episode
+multi_fragment => teaser for multiple episodes (e.g. week overview)
+uitzending => a complete show
+
+You can specify a type filter, by appending ?type=... to the URL. You can select multiple types by using the pipeline as delimiter.
+
+Example URL's:
+http://www.rtl.nl/xl/#/a/276832
+http://www.rtl.nl/xl/#/a/10821?type=uitzending|fragmenten

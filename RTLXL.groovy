@@ -6,17 +6,21 @@ import org.serviio.library.online.*
  * RTL 4, 5 & 7
  * 
  * @author Erwin Bovendeur 
- * @version 1.0
- * @releasedate 2012-12-17
+ * @version 1.1
+ * @releasedate 2013-01-04
  *
  * Changelog:
  * 
+ * Version 1.1:
+ * - Added support for specifying a show type. Possible show types are: onlineonly, fragmenten, eps_fragment, multi_fragment, uitzending
+ *   You can specify a type by prepending ?type= to the url. You can specify more than one type by using the | as delimiter
+ *   e.g.: http://www.rtl.nl/xl/#/a/10821?type=uitzending|fragmenten
  * Version 1.0: 
  * - Initial release
  */
 class RTLXL extends WebResourceUrlExtractor {
 
-    final VALID_LINK_URL    = '^http://www.rtl.nl/xl/#/a/([\\d]+)$'
+    final VALID_LINK_URL    = '^http://www.rtl.nl/xl/#/a/([\\d]+)(\\?type=([a-zA-Z|]+))?$'
     final BASE_FEED_URL     = 'http://www.rtl.nl/system/s4m/ipadfd/d=ipad/fmt=adaptive/ak='
 
     final M3U8_ITEM         = '(?s)#EXT-X-STREAM.*?BANDWIDTH=([\\d]+?),.*?RESOLUTION=.*?(http://.+?\\.m3u8)'
@@ -44,10 +48,35 @@ class RTLXL extends WebResourceUrlExtractor {
         return feedUrl ==~ VALID_LINK_URL
     }
 
+    // Valid class names: 
+    // onlineonly => only online available
+    // fragmenten => short fragment for one episode
+    // eps_fragment => teaser for one episode
+    // multi_fragment => teaser for multiple episodes (e.g. week overview)
+    // uitzending => a complete show
+
+    String[] validClassNames(String type) {
+        String[] items = type.split('\\|')
+
+        List<String> lst = []
+
+        for (int i = 0; i < items.length; i++) {
+            if (items[i] in ['onlineonly', 'fragmenten', 'eps_fragment', 'multi_fragment', 'uitzending']) {
+                lst << items[i]
+            }
+        }
+        return lst as String[]
+    }
+
     WebResourceContainer extractItems(URL resourceUrl, int maxItems) {
     	List<WebResourceItem> items = []
 
-    	String programId = FirstMatch(resourceUrl.toString(), VALID_LINK_URL)
+        def matchUrl = resourceUrl =~ VALID_LINK_URL
+    	String programId = matchUrl[0][1]
+
+        // We can check for classnames, to filter out certain episodes
+        String types = matchUrl[0].size() > 2 ? matchUrl[0][3] : null
+        String[] classNames = types != null ? validClassNames(types) : []
 
         URL videoUrl = new URL(BASE_FEED_URL + programId)
 
@@ -56,8 +85,16 @@ class RTLXL extends WebResourceUrlExtractor {
 
         def xmlContent = new XmlSlurper().parseText(programXml).declareNamespace(i: "http://www.w3.org/2001/XMLSchema-instance")
 
-        for (int i = 0; i < xmlContent.item.size() && (maxItems == -1 || i < maxItems); i++) {
+        for (int i = 0; i < xmlContent.item.size() && (maxItems == -1 || items.size() < maxItems); i++) {
             def itm = xmlContent.item[i]
+
+            if (classNames.length > 0) {
+                String classname = itm.classname.text()
+                if (!(classname in classNames)) {
+                    log 'Skipping item with class ' + classname
+                    continue;
+                }
+            }
 
             if (programThumbnail == null || programThumbnail.length() == 0) {
                 pageTitle = itm.serienaam.text()
@@ -127,6 +164,7 @@ class RTLXL extends WebResourceUrlExtractor {
     static void main(args) {
         // this is just to test
         testURL("http://www.rtl.nl/xl/#/a/276832")
+	    testURL("http://www.rtl.nl/xl/#/a/10821?type=uitzending|fragmenten|blabla")
 //        testURL("http://www.nickelodeon.se/video/show/280-dora-utforskaren")
 //        testURL("http://www.nickelodeon.no/video/show/280-dora-utforskeren")
     }
