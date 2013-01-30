@@ -97,19 +97,24 @@ class FreeMovieFan extends WebResourceUrlExtractor {
     	List<WebResourceItem> items = []
 
         def matchUrl = resourceUrl =~ VALID_LINK_URL
-        def baseUrl = matchUrl[0][1]
-        def path = matchUrl[0][2]
-        def args = matchUrl[0][11]
+        String baseUrl = matchUrl[0][1]
+        String path = matchUrl[0][2]
+        String args = matchUrl[0][11]
 
         int currentPage = getPage(args)
         if (path == null) path = ''
 
         String seperator = '?'
 
+        String max = findArg(args, 'maxItems');
+        if (max != null) {
+            int iMax = max.toInteger()
+            maxItems = iMax > 0 ? Math.min(iMax, maxItems) : maxItems
+        }
+
         if (path == 'search.php') {
             // Include type and keywords to path
             seperator = '&'
-            println args
             String type = findArg(args, 'type')
             String keywords = findArg(args, 'keywords')
 
