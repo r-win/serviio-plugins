@@ -14,12 +14,15 @@ import groovy.json.JsonSlurper
  *
  * Changelog:
  * 
+ * Version 1.1:
+ * - Added support for year and search
+ * 
  * Version 1.0:
  * - Initial release
  */
 class FreeMovieFan extends WebResourceUrlExtractor {
 
-    final VALID_LINK_URL    = '^(http://www.fmovief.com)/?(category/(\\d+)/([^\\?]+))?(\\?(.+))?$'
+    final VALID_LINK_URL    = '^(http://www.fmovief.com)/?((category/(\\d+)/([^\\?]+))|(year/(\\d+))|(search/.*?)|(search.php))?(\\?(.+))?$'
     final ITEM_PART         = '(?s)<div class="item">(.*?)<div class="clear">'
     final ITEM_PARSE        = '(?s)<img src="(.+?)".*?<a href=".*?">(.+?)</a>.*<div class="votes" movieid="(.+?)".*?Release: (\\d+)'
 
@@ -39,7 +42,7 @@ class FreeMovieFan extends WebResourceUrlExtractor {
     }
 
     int getVersion() {
-        return 10;
+        return 11;
     }
     
     boolean extractorMatches(URL feedUrl) {
@@ -96,17 +99,27 @@ class FreeMovieFan extends WebResourceUrlExtractor {
         def matchUrl = resourceUrl =~ VALID_LINK_URL
         def baseUrl = matchUrl[0][1]
         def path = matchUrl[0][2]
-        def categoryId = matchUrl[0][3]
-        def categoryName = matchUrl[0][4]
-        def args = matchUrl[0][6]
+        def args = matchUrl[0][11]
 
         int currentPage = getPage(args)
         if (path == null) path = ''
 
+        String seperator = '?'
+
+        if (path == 'search.php') {
+            // Include type and keywords to path
+            seperator = '&'
+            println args
+            String type = findArg(args, 'type')
+            String keywords = findArg(args, 'keywords')
+
+            path += '?type=' + type + '&keywords=' + keywords 
+        }
+
         // We should call multiple pages to get the correct amount of items
         while (items.size() < maxItems) {
             // Create the url for the correct page
-            String url = baseUrl + '/' + path + '?p=' + currentPage
+            String url = baseUrl + '/' + path + seperator + 'p=' + currentPage
             URL pageUrl = new URL(url)
 
             String pageContent = pageUrl.getText()
@@ -130,7 +143,7 @@ class FreeMovieFan extends WebResourceUrlExtractor {
             currentPage++
         }
 
-        return new WebResourceContainer(title: categoryName == null ? 'Free Movie Fan' : 'Free Movie Fan - ' + categoryName, items: items)
+        return new WebResourceContainer(title: 'Free Movie Fans', items: items)
     }
 
     ContentURLContainer extractUrl(WebResourceItem item, PreferredQuality requestedQuality) {
@@ -176,6 +189,9 @@ class FreeMovieFan extends WebResourceUrlExtractor {
     static void main(args) {
         // this is just to test
         testURL("http://www.fmovief.com")
+        testURL("http://www.fmovief.com/year/2012")
+        testURL("http://www.fmovief.com/search.php?type=director&keywords=John")
+        testURL("http://www.fmovief.com/search/star/Philip Seymour Hoffman")
 	    testURL("http://www.fmovief.com/category/5/Comedy")
         testURL("http://www.fmovief.com/?p=4")
     }
