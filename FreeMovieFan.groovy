@@ -9,13 +9,18 @@ import groovy.json.JsonSlurper
  * The reason is that this site also uses a ?start=xxx argument to specify where to start the movie, just like the mediabrowser does 
  *
  * @author Erwin Bovendeur 
- * @version 1.0
- * @releasedate 2013-01-30
+ * @version 1.2
+ * @releasedate 2013-02-02
  *
  * Changelog:
  * 
+ * Version 1.2:
+ * - Added some log messages
+ * - Changed maxItems to be 50 if set to 0
+ *
  * Version 1.1:
  * - Added support for year and search
+ * - Added support for a custom amount of items using argument maxItems=xx
  * 
  * Version 1.0:
  * - Initial release
@@ -42,7 +47,7 @@ class FreeMovieFan extends WebResourceUrlExtractor {
     }
 
     int getVersion() {
-        return 11;
+        return 12;
     }
     
     boolean extractorMatches(URL feedUrl) {
@@ -106,11 +111,12 @@ class FreeMovieFan extends WebResourceUrlExtractor {
 
         String seperator = '?'
 
-        String max = findArg(args, 'maxItems');
+        String max = findArg(args, 'maxItems')
         if (max != null) {
             int iMax = max.toInteger()
             maxItems = iMax > 0 ? Math.min(iMax, maxItems) : maxItems
         }
+        if (maxItems == 0) maxItems = 50
 
         if (path == 'search.php') {
             // Include type and keywords to path
@@ -127,10 +133,13 @@ class FreeMovieFan extends WebResourceUrlExtractor {
             String url = baseUrl + '/' + path + seperator + 'p=' + currentPage
             URL pageUrl = new URL(url)
 
+            log('FreeMovieFan: Opening url: ' + url)
+
             String pageContent = pageUrl.getText()
 
             // Parse the page
             def movieItems = pageContent =~ ITEM_PART
+            log('FreeMovieFan: Found ' + movieItems.size() + ' items on the page')
             for (int i = 0; i < movieItems.size() && items.size() < maxItems; i++) {
                 // Parse each item into parts
                 def parsedItem = movieItems[i] =~ ITEM_PARSE
@@ -139,6 +148,8 @@ class FreeMovieFan extends WebResourceUrlExtractor {
                 String title = parsedItem[0][2]
                 String movieId = parsedItem[0][3]
                 int year = parsedItem[0][4].toInteger()
+
+                log('FreeMovieFan: Parsed item "' + title + '"')
 
                 // The movie id will stay the same, but the URL will be different everytime we try to play the movie, so pass on the movieId instead
                 WebResourceItem item = new WebResourceItem(title: title, releaseDate: new Date(year - 1900, 1, 1), additionalInfo: ['movieId':movieId,'thumbUrl':thumbUrl])
@@ -155,6 +166,8 @@ class FreeMovieFan extends WebResourceUrlExtractor {
         String movieId = item.getAdditionalInfo()['movieId']
         String thumbUrl = item.getAdditionalInfo()['thumbUrl']
 
+        log ('FreeMovieFan: Extracting url for movie with id ' + movieId)
+
         // Call the ajax script to get the movie url
         String json = doPost('http://www.fmovief.com/ajax.php?act=fetchplayurl', 'movie=' + movieId)
         JsonSlurper slurper = new JsonSlurper()
@@ -163,6 +176,7 @@ class FreeMovieFan extends WebResourceUrlExtractor {
         if (result.result) {
             // Retrieve the correct url
             String redirectedUrl = doGetAndFindHeader('http://www.fmovief.com' + result.mediaurl, 'Location')
+            log ('FreeMovieFan: Found original URL: ' + redirectedUrl)
 
             // We'll expire the movie url immediately, it will call this method again when it starts playing. This way, we can retrieve the correct movie URL.
             // The movie Id is correct, and the thumbnail also. We don't need to parse the whole feed again
