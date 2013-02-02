@@ -116,7 +116,7 @@ class FreeMovieFan extends WebResourceUrlExtractor {
             int iMax = max.toInteger()
             maxItems = iMax > 0 ? Math.min(iMax, maxItems) : maxItems
         }
-        if (maxItems == 0) maxItems = 50
+        if (maxItems < 1) maxItems = 50
 
         if (path == 'search.php') {
             // Include type and keywords to path
