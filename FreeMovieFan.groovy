@@ -110,13 +110,14 @@ class FreeMovieFan extends WebResourceUrlExtractor {
         if (path == null) path = ''
 
         String seperator = '?'
+        
+        if (maxItems < 1) maxItems = 50
 
         String max = findArg(args, 'maxItems')
         if (max != null) {
             int iMax = max.toInteger()
             maxItems = iMax > 0 ? Math.min(iMax, maxItems) : maxItems
         }
-        if (maxItems < 1) maxItems = 50
 
         if (path == 'search.php') {
             // Include type and keywords to path
